@@ -144,18 +144,46 @@ public class TasksController : ControllerBase {
             PageSize = pageSize,
             TotalCount = totalCount,
             TotalPages = totalPages,
-            HasPrev = page > 1 ,
-            HasNext = page < totalPages , 
+            HasPrev = page > 1,
+            HasNext = page < totalPages,
             Items = tasks
         });
     }
     [HttpGet("overdue")]
     public async Task<ActionResult<IEnumerable<TaskItem>>> GetOverdue() {
-        var now = DateTime.UtcNow ;
+        var now = DateTime.UtcNow;
         var overdue = await _db.Tasks
-        .Where(t=> t.DueDate !=null && t.DueDate < now && !t.IsCompleted)
-        .OrderBy(t=>t.DueDate)
+        .Where(t => t.DueDate != null && t.DueDate < now && !t.IsCompleted)
+        .OrderBy(t => t.DueDate)
         .ToListAsync();
         return Ok(overdue);
+    }
+    [HttpPatch("complete-all")]
+    public async Task<IActionResult> CompleteAllTasks() {
+        // Вариант 1 — через цикл (проще для понимания):
+        var tasks = await _db.Tasks.Where(t => !
+        t.IsCompleted).ToListAsync();
+        foreach (var task in tasks) {
+            task.IsCompleted = true;
+        }
+        await _db.SaveChangesAsync();
+        return Ok(new { Updated = tasks.Count });
+        // Вариант 2 — через ExecuteUpdateAsync (эффективнее, одинSQL-запрос):
+        // var count = await _db.Tasks
+        // .Where(t => !t.IsCompleted)
+        // .ExecuteUpdateAsync(s => s.SetProperty(t => t.IsCompleted,
+        // true));
+        // return Ok(new { Updated = count });
+    }
+    [HttpDelete("completed")]
+    public async Task<ActionResult> DeleteC() {
+        var complete = await _db.Tasks.CountAsync(t => t.IsCompleted);
+        if(complete == 0) {
+            return Ok(new { Message = "нет выполнныч задач" , Deleted = 0 });
+        }
+        var count = await _db.Tasks
+        .Where(t=> t.IsCompleted)
+        .ExecuteDeleteAsync();
+        return Ok(new { Deleted = count });
     }
 }
